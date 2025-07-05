@@ -4,61 +4,65 @@ set -e
 REPO_URL="https://github.com/ajvadam/devenv"
 CLONE_DIR="$HOME/.devenv-temp"
 
-echo "🔧 Detected user: $USER"
-echo "🧠 Adapting for GitHub Codespaces if necessary..."
+echo "🔧 Starting setup..."
 
-# Ensure script is run as codespace user, not root
+# Ensure not running as root
 if [ "$USER" = "root" ]; then
-    echo "❌ Do not run this script as root. Please run as your user in Codespaces."
-    exit 1
+  echo "❌ Please run this script as a non-root user with sudo privileges."
+  exit 1
 fi
 
-echo "📦 Updating apt and installing core tools..."
+echo "📦 Updating apt package lists..."
 sudo apt update
-sudo apt install -y git curl ca-certificates gnupg lsb-release neovim tmux
 
-# === Docker Setup ===
-echo "🐳 Installing Docker (official repo)..."
+echo "🔍 Removing potential conflicting packages (moby, docker.io, containerd)..."
+sudo apt remove -y docker.io containerd moby-tini moby-engine moby-cli || true
 
-# Remove conflicts if present
-sudo apt remove -y docker.io containerd || true
+echo "🧹 Cleaning apt cache..."
+sudo apt clean
 
-# Add Docker’s official GPG key
+echo "📦 Installing prerequisites for Docker repo..."
+sudo apt install -y ca-certificates curl gnupg lsb-release git neovim tmux
+
+echo "🐳 Setting up Docker official repo..."
+
 sudo install -m 0755 -d /etc/apt/keyrings
+
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
   sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
 
-# Set up Docker repository
 echo \
   "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
   https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | \
   sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 
+echo "📦 Updating apt again after adding Docker repo..."
 sudo apt update
+
+echo "📦 Installing Docker packages..."
 sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
 echo "🔒 Adding $USER to docker group..."
 sudo usermod -aG docker "$USER"
 
-# Apply group changes immediately (won't require logout in Codespaces)
+# Immediately activate docker group without logout (only for this session)
 newgrp docker <<EOF
-echo "✅ Docker group applied"
+echo "✅ Docker group applied for $USER"
 EOF
 
-# === Config Files Setup ===
-echo "📁 Cloning config files from $REPO_URL"
+echo "📁 Cloning your config repo from $REPO_URL..."
 rm -rf "$CLONE_DIR"
 git clone "$REPO_URL" "$CLONE_DIR"
 
-echo "📝 Installing Neovim config..."
+echo "📝 Copying Neovim config..."
 mkdir -p ~/.config/nvim
 cp "$CLONE_DIR/vimconfig.lua" ~/.config/nvim/init.lua
 
-echo "📝 Installing tmux config..."
+echo "📝 Copying tmux config..."
 cp "$CLONE_DIR/tmux.conf" ~/.tmux.conf
 
-echo "🧹 Cleaning up temp files..."
+echo "🧹 Cleaning up temporary files..."
 rm -rf "$CLONE_DIR"
 
-echo "✅ All set! Your environment is ready."
+echo "✅ Setup complete! You may need to restart your terminal or run 'newgrp docker' again for Docker permissions to apply."
 
