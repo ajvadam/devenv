@@ -15,8 +15,16 @@ fi
 echo "📦 Updating apt package lists..."
 sudo apt update
 
-echo "🔍 Removing potential conflicting packages (moby, docker.io, containerd)..."
-sudo apt remove -y docker.io containerd moby-tini moby-engine moby-cli || true
+echo "⚠️ Forcing removal of conflicting moby packages if any (may fix half-installed states)..."
+sudo dpkg --remove --force-remove-reinstreq moby-tini || true
+sudo dpkg --remove --force-remove-reinstreq moby-engine || true
+sudo dpkg --remove --force-remove-reinstreq moby-cli || true
+
+echo "🔍 Removing moby packages and docker.io to avoid conflicts..."
+sudo apt purge -y moby-tini moby-engine moby-cli docker.io containerd || true
+
+echo "🧹 Autoremoving unused packages..."
+sudo apt autoremove -y
 
 echo "🧹 Cleaning apt cache..."
 sudo apt clean
@@ -45,7 +53,7 @@ sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin d
 echo "🔒 Adding $USER to docker group..."
 sudo usermod -aG docker "$USER"
 
-# Immediately activate docker group without logout (only for this session)
+# Apply docker group to current shell session
 newgrp docker <<EOF
 echo "✅ Docker group applied for $USER"
 EOF
